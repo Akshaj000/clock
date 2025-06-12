@@ -27,7 +27,7 @@ export default function Clock({ onTimeReached, initialTriggeredCall = false }: C
         const minutes = time.getMinutes();
         const hour12 = hours % 12 || 12;
 
-        if (hour12 === 1 && minutes === 0 && !hasTriggeredCall) {
+        if (hour12 === 2 && minutes === 0 && !hasTriggeredCall) {
             if (onTimeReached) {
                 onTimeReached();
                 setHasTriggeredCall(true);

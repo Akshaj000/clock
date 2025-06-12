@@ -25,52 +25,13 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     const [mediaState, setMediaState] = useState<MediaState>({
         stream: null,
         audioEnabled: true,
-        videoEnabled: false, // Default to video off
+        videoEnabled: false,
         error: null
     });
     const [callDuration, setCallDuration] = useState(initialDuration);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
-    const audioRef = useRef<HTMLAudioElement | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-    useEffect(() => {
-        if (!isActive) return;
-
-        const initializeAudio = async () => {
-            try {
-                if (!audioRef.current) {
-                    audioRef.current = new Audio('/sounds/audio.mp3');
-                    audioRef.current.loop = false;
-                    audioRef.current.volume = 0.3;
-                    audioRef.current.addEventListener('ended', onEnd);
-                    await audioRef.current.play();
-                }
-
-                setMediaState(prev => ({
-                    ...prev,
-                    error: null
-                }));
-
-            } catch (err) {
-                console.error("Audio initialization error:", err);
-                setMediaState(prev => ({
-                    ...prev,
-                    error: "Could not access microphone"
-                }));
-            }
-        };
-
-        initializeAudio();
-
-        return () => {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.removeEventListener('ended', onEnd);
-                audioRef.current = null;
-            }
-        };
-    }, [isActive, onEnd]);
 
     useEffect(() => {
         if (!isActive) {
@@ -98,9 +59,6 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
             if (type === 'audio') {
                 newState.audioEnabled = !prev.audioEnabled;
-                if (audioRef.current) {
-                    audioRef.current.muted = !newState.audioEnabled;
-                }
             } else {
                 newState.videoEnabled = !prev.videoEnabled;
             }
@@ -122,12 +80,6 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     }, []);
 
     const handleEndCall = useCallback(() => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.removeEventListener('ended', onEnd);
-            audioRef.current = null;
-        }
-
         onEnd();
     }, [onEnd]);
 
@@ -237,7 +189,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                         onClick={() => toggleMedia('video')}
                         active={mediaState.videoEnabled}
                         title={mediaState.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
-                        // disabled={true} // Disable video toggle since we're not using camera
+                    // disabled={true} // Disable video toggle since we're not using camera
                     />
 
                     <ControlButton
