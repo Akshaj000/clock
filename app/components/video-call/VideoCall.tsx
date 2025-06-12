@@ -25,30 +25,20 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     const [mediaState, setMediaState] = useState<MediaState>({
         stream: null,
         audioEnabled: true,
-        videoEnabled: true,
+        videoEnabled: false, // Default to video off
         error: null
     });
     const [callDuration, setCallDuration] = useState(initialDuration);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
-    const videoRef = useRef<HTMLVideoElement>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         if (!isActive) return;
 
-        const initializeMedia = async () => {
+        const initializeAudio = async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 1280, height: 720 },
-                    audio: true
-                });
-
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                }
-
                 if (!audioRef.current) {
                     audioRef.current = new Audio('/sounds/audio.mp3');
                     audioRef.current.loop = false;
@@ -59,26 +49,21 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
                 setMediaState(prev => ({
                     ...prev,
-                    stream,
                     error: null
                 }));
 
             } catch (err) {
-                console.error("Media initialization error:", err);
+                console.error("Audio initialization error:", err);
                 setMediaState(prev => ({
                     ...prev,
-                    error: "Could not access camera/microphone"
+                    error: "Could not access microphone"
                 }));
             }
         };
 
-        initializeMedia();
+        initializeAudio();
 
         return () => {
-            if (mediaState.stream) {
-                mediaState.stream.getTracks().forEach(track => track.stop());
-            }
-
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.removeEventListener('ended', onEnd);
@@ -105,7 +90,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                 clearInterval(timerRef.current);
             }
         };
-    }, [isActive, mediaState.stream]);
+    }, [isActive]);
 
     const toggleMedia = useCallback((type: 'audio' | 'video') => {
         setMediaState(prev => {
@@ -113,21 +98,11 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
             if (type === 'audio') {
                 newState.audioEnabled = !prev.audioEnabled;
-                if (prev.stream) {
-                    prev.stream.getAudioTracks().forEach(track => {
-                        track.enabled = newState.audioEnabled;
-                    });
-                }
                 if (audioRef.current) {
                     audioRef.current.muted = !newState.audioEnabled;
                 }
             } else {
                 newState.videoEnabled = !prev.videoEnabled;
-                if (prev.stream) {
-                    prev.stream.getVideoTracks().forEach(track => {
-                        track.enabled = newState.videoEnabled;
-                    });
-                }
             }
 
             return newState;
@@ -147,10 +122,6 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     }, []);
 
     const handleEndCall = useCallback(() => {
-        if (mediaState.stream) {
-            mediaState.stream.getTracks().forEach(track => track.stop());
-        }
-
         if (audioRef.current) {
             audioRef.current.pause();
             audioRef.current.removeEventListener('ended', onEnd);
@@ -158,7 +129,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         }
 
         onEnd();
-    }, [mediaState.stream, onEnd]);
+    }, [onEnd]);
 
     if (!isActive) return null;
 
@@ -211,27 +182,16 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                             </div>
                         </div>
 
-                        {/* Local Video Preview */}
+                        {/* Local Video Preview - Now just showing a static avatar */}
                         <div className="absolute top-4 left-4 w-60 h-40 bg-gray-800 rounded-lg overflow-hidden shadow-xl border-2 border-gray-600">
-                            {mediaState.videoEnabled ? (
-                                <video
-                                    ref={videoRef}
-                                    autoPlay
-                                    playsInline
-                                    muted
-                                    className="w-full h-full object-cover"
-                                    aria-label="Your camera feed"
-                                />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gray-700">
-                                    <div
-                                        className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center"
-                                        aria-label="Your camera is off"
-                                    >
-                                        <span className="text-white text-xl font-semibold">You</span>
-                                    </div>
+                            <div className="w-full h-full flex items-center justify-center bg-gray-700">
+                                <div
+                                    className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center"
+                                    aria-label="Your camera is off"
+                                >
+                                    <span className="text-white text-xl font-semibold">You</span>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -277,6 +237,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                         onClick={() => toggleMedia('video')}
                         active={mediaState.videoEnabled}
                         title={mediaState.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
+                        // disabled={true} // Disable video toggle since we're not using camera
                     />
 
                     <ControlButton
@@ -319,4 +280,4 @@ export const VideoCall: React.FC<VideoCallProps> = ({
             </div>
         </div>
     );
-}; 
+};
