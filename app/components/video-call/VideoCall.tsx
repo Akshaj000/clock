@@ -48,7 +48,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                         audio.volume = 0.3;
                         audio.addEventListener('ended', onEnd);
                         await audio.play();
-                    } catch (err) {
+                    } catch {
                         // Fallback to audio.mp3
                         audio = new Audio('/sounds/audio.mp3');
                         audio.loop = false;
