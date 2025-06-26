@@ -7,7 +7,6 @@ import {
 import { VideoCallProps, MediaState } from './types';
 import { ControlButton } from './ControlButton';
 import { DurationDisplay } from './DurationDisplay';
-import { AudioIndicator } from './AudioIndicator';
 
 export const VideoCall: React.FC<VideoCallProps> = ({
     isActive = true,
@@ -24,8 +23,8 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 }) => {
     const [mediaState, setMediaState] = useState<MediaState>({
         stream: null,
-        audioEnabled: true,
-        videoEnabled: false,
+        audioEnabled: false,  // Keep audio disabled as per requirement
+        videoEnabled: true,   // Default video to enabled
         error: null
     });
     const [callDuration, setCallDuration] = useState(initialDuration);
@@ -33,6 +32,55 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
+
+    // Initialize camera
+    const initializeCamera = useCallback(async () => {
+        try {
+            // Request only video, no audio
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'user', // Use front camera
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            });
+
+            localStreamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+
+            setMediaState(prev => ({
+                ...prev,
+                stream,
+                videoEnabled: true,
+                error: null
+            }));
+        } catch (err) {
+            console.error("Camera access error:", err);
+            setMediaState(prev => ({
+                ...prev,
+                error: "Could not access camera"
+            }));
+        }
+    }, []);
+
+    // Handle camera initialization
+    useEffect(() => {
+        if (isActive && mediaState.videoEnabled) {
+            initializeCamera();
+        }
+        
+        return () => {
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => track.stop());
+                localStreamRef.current = null;
+            }
+        };
+    }, [isActive, mediaState.videoEnabled, initializeCamera]);
 
     useEffect(() => {
         if (!isActive) return;
@@ -97,21 +145,29 @@ export const VideoCall: React.FC<VideoCallProps> = ({
     }, [isActive]);
 
     const toggleMedia = useCallback((type: 'audio' | 'video') => {
-        setMediaState(prev => {
-            const newState = { ...prev };
-
-            if (type === 'audio') {
-                newState.audioEnabled = !prev.audioEnabled;
-                if (audioRef.current) {
-                    audioRef.current.muted = !newState.audioEnabled;
-                }
-            } else {
+        if (type === 'video') {
+            setMediaState(prev => {
+                const newState = { ...prev };
                 newState.videoEnabled = !prev.videoEnabled;
-            }
+                
+                if (localStreamRef.current) {
+                    localStreamRef.current.getVideoTracks().forEach(track => {
+                        track.enabled = newState.videoEnabled;
+                    });
+                }
+                
+                if (!newState.videoEnabled && localStreamRef.current) {
+                    localStreamRef.current.getTracks().forEach(track => track.stop());
+                    localStreamRef.current = null;
+                } else if (newState.videoEnabled) {
+                    initializeCamera();
+                }
 
-            return newState;
-        });
-    }, []);
+                return newState;
+            });
+        }
+        // Ignore audio toggle as we don't want to handle microphone
+    }, [initializeCamera]);
 
     const toggleFullscreen = useCallback(() => {
         if (!document.fullscreenElement) {
@@ -171,24 +227,30 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                                     <span className="ml-2 text-green-400">●</span>
                                 )}
                             </div>
-                            {/* Audio indicator */}
-                            <div className="absolute top-4 right-4">
-                                <AudioIndicator isActive={participant.isMicOn} />
-                            </div>
                         </div>
-                        {/* Local Video Preview - Now just showing a static avatar */}
-                        <div className="absolute top-4 left-4 w-24 h-16 sm:w-60 sm:h-40 bg-gray-800 rounded-lg overflow-hidden shadow-xl border-2 border-gray-600 flex items-center justify-center">
-                            <div className="w-full h-full flex items-center justify-center bg-gray-700">
-                                <div
-                                    className="w-10 h-10 sm:w-16 sm:h-16 bg-gray-600 rounded-full flex items-center justify-center"
-                                    aria-label="Your camera is off"
-                                >
-                                    <span className="text-white text-base sm:text-xl font-semibold">You</span>
+
+                        {/* Local Video Preview */}
+                        <div className="absolute top-4 left-4 w-24 h-16 sm:w-60 sm:h-40 bg-gray-800 rounded-lg overflow-hidden shadow-xl border-2 border-gray-600">
+                            {mediaState.videoEnabled ? (
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    className="w-full h-full object-cover"
+                                    style={{ transform: 'scaleX(-1)' }} // Mirror the video
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-700">
+                                    <div className="w-10 h-10 sm:w-16 sm:h-16 bg-gray-600 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-base sm:text-xl font-semibold">You</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
+
                 {/* Call info overlay */}
                 <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm">
                     <div className="flex items-center space-x-2">
