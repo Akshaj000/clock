@@ -45,7 +45,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                     audio.loop = false;
                     audio.volume = 0.3;
                     audio.addEventListener('ended', () => {
-                        // Optionally, you could set a state to indicate the call is now 'live'
+                        handleEndCall();
                     });
                     await audio.play();
                     audioRef.current = audio;
@@ -70,7 +70,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         return () => {
             if (audioRef.current) {
                 audioRef.current.pause();
-                audioRef.current.removeEventListener('ended', onEnd);
+                audioRef.current.removeEventListener('ended', handleEndCall);
                 audioRef.current = null;
             }
         };
