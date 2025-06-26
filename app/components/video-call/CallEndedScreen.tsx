@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhoneOff, Video } from 'lucide-react';
+import { PhoneOff, X } from 'lucide-react';
 import { Participant } from './types';
 import { DurationDisplay } from './DurationDisplay';
 
@@ -16,7 +16,7 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
     onViewRecording,
     onStartNewCall
 }) => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-800 via-gray-900 to-black">
+    <div className="min-h-screen flex items-center justify-center">
         <div className="text-center text-white max-w-md">
             <div className="mb-8">
                 <div className="w-20 h-20 bg-red-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -30,21 +30,21 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
             <div className="space-y-4">
                 <button
                     onClick={onViewRecording}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg transition-all font-semibold flex items-center justify-center space-x-2"
-                    aria-label="View call recording"
+                    className="w-full bg-gray-600 hover:bg-gray-700 text-white px-6 py-4 rounded-lg transition-all font-semibold flex items-center justify-center space-x-2"
+                    aria-label="Close tab"
                 >
-                    <Video size={20} />
-                    <span>View Call Recording</span>
+                    <X size={20} />
+                    <span>Close Tab</span>
                 </button>
                 <button
                     onClick={onStartNewCall}
-                    className="w-full bg-gray-700 hover:bg-gray-600 text-white px-6 py-4 rounded-lg transition-all font-semibold flex items-center justify-center space-x-2"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg transition-all font-semibold flex items-center justify-center space-x-2"
                     aria-label="Start new call"
                 >
-                    <PhoneOff size={20} />
+                    <PhoneOff size={20} className="rotate-180" />
                     <span>Start New Call</span>
                 </button>
             </div>
         </div>
     </div>
-); 
+);

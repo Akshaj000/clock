@@ -3,7 +3,6 @@ export * from './ControlButton';
 export * from './DurationDisplay';
 export * from './AudioIndicator';
 export * from './VideoCall';
-export * from './RingingScreen';
 export * from './CallEndedScreen';
 export * from './VideoCallRecording';
 export * from './VideoCallDemo'; 

@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { VideoCall } from './components/video-call/VideoCall';
+import { VideoCallDemo } from './components/video-call';
 
 export default function Home() {
   const [callStarted, setCallStarted] = useState(false);
   const [connectError, setConnectError] = useState(false);
   const [glitch, setGlitch] = useState(false);
-  const callDuration = 0;
 
   // Simulate connecting and always show glitch first, then retry, then call
   useEffect(() => {
@@ -61,19 +60,7 @@ export default function Home() {
             {glitch && <div className="text-red-400 text-sm animate-pulse">Network unstable...</div>}
           </div>
         ) : (
-          <VideoCall
-            isActive={true}
-            onEnd={() => { }}
-            participant={{
-              id: 1,
-              name: 'John',
-              avatar: 'SW',
-              isMicOn: true,
-              isVideoOn: true,
-              image: '/john.png'
-            }}
-            callDuration={callDuration}
-          />
+          <VideoCallDemo />
         )}
       </div>
       <style jsx global>{`
