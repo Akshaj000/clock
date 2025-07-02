@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WifiOff, X } from 'lucide-react';
 import { Participant } from './types';
 
@@ -11,11 +11,66 @@ interface WifiPasswordScreenProps {
 export const WifiPasswordScreen: React.FC<WifiPasswordScreenProps> = ({
     participant,
     onRetry,
-    correctPassword = '071490'
+    correctPassword = '123456'
 }) => {
     const [password, setPassword] = useState<string>('');
     const [error, setError] = useState<boolean>(false);
     const [showErrorMessage, setShowErrorMessage] = useState<boolean>(false);
+    const [soundEnabled] = useState<boolean>(true);
+
+    // Audio refs for better performance
+    const keyAudioRef = useRef<HTMLAudioElement | null>(null);
+    const errorAudioRef = useRef<HTMLAudioElement | null>(null);
+    const successAudioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Preload audio files
+    useEffect(() => {
+        keyAudioRef.current = new Audio('/sounds/key-press.mp3');
+        keyAudioRef.current.volume = 0.3;
+        keyAudioRef.current.load();
+
+        errorAudioRef.current = new Audio('/sounds/error-tone.mp3');
+        errorAudioRef.current.volume = 0.4;
+        errorAudioRef.current.load();
+
+        successAudioRef.current = new Audio('/sounds/success-chime.mp3');
+        successAudioRef.current.volume = 0.4;
+        successAudioRef.current.load();
+
+        return () => {
+            if (keyAudioRef.current) keyAudioRef.current = null;
+            if (errorAudioRef.current) errorAudioRef.current = null;
+            if (successAudioRef.current) successAudioRef.current = null;
+        };
+    }, []);
+
+    // Sound utility functions
+    const playKeySound = useCallback(() => {
+        if (!soundEnabled) return;
+
+        if (keyAudioRef.current) {
+            keyAudioRef.current.currentTime = 0;
+            keyAudioRef.current.play().catch(err => console.error('Error playing key sound:', err));
+        }
+    }, [soundEnabled]);
+
+    const playErrorSound = useCallback(() => {
+        if (!soundEnabled) return;
+
+        if (errorAudioRef.current) {
+            errorAudioRef.current.currentTime = 0;
+            errorAudioRef.current.play().catch(err => console.error('Error playing error sound:', err));
+        }
+    }, [soundEnabled]);
+
+    const playSuccessSound = useCallback(() => {
+        if (!soundEnabled) return;
+
+        if (successAudioRef.current) {
+            successAudioRef.current.currentTime = 0;
+            successAudioRef.current.play().catch(err => console.error('Error playing success sound:', err));
+        }
+    }, [soundEnabled]);
 
     // Prevent browser bounce/scroll effects
     useEffect(() => {
@@ -28,8 +83,27 @@ export const WifiPasswordScreen: React.FC<WifiPasswordScreenProps> = ({
         };
     }, []);
 
+    // Haptic feedback for mobile devices
+    const triggerHapticFeedback = useCallback((intensity: 'light' | 'medium' | 'heavy' = 'light') => {
+        if (!navigator.vibrate) return;
+
+        switch (intensity) {
+            case 'light':
+                navigator.vibrate(10);
+                break;
+            case 'medium':
+                navigator.vibrate(20);
+                break;
+            case 'heavy':
+                navigator.vibrate([30, 30, 30]);
+                break;
+        }
+    }, []);
+
     const handleNumberClick = (number: number) => {
         if (password.length < 6) {
+            playKeySound();
+            triggerHapticFeedback('light');
             setPassword(prev => prev + number);
             setError(false);
             setShowErrorMessage(false);
@@ -37,15 +111,27 @@ export const WifiPasswordScreen: React.FC<WifiPasswordScreenProps> = ({
     };
 
     const handleBackspace = () => {
-        setPassword(prev => prev.slice(0, -1));
-        setError(false);
-        setShowErrorMessage(false);
+        if (password.length > 0) {
+            playKeySound();
+            triggerHapticFeedback('light');
+            setPassword(prev => prev.slice(0, -1));
+            setError(false);
+            setShowErrorMessage(false);
+        }
     };
 
     const handleSubmit = () => {
+        triggerHapticFeedback('medium');
+
         if (password === correctPassword) {
-            onRetry();
+            playSuccessSound();
+            // Small delay to allow success sound to play before transitioning
+            setTimeout(() => {
+                onRetry();
+            }, 600);
         } else {
+            playErrorSound();
+            triggerHapticFeedback('heavy');
             setError(true);
             setShowErrorMessage(true);
             setTimeout(() => {
@@ -61,28 +147,28 @@ export const WifiPasswordScreen: React.FC<WifiPasswordScreenProps> = ({
                     <button
                         key={num}
                         onClick={() => handleNumberClick(num)}
-                        className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white rounded-xl text-2xl font-medium flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-95 border border-white/5 shadow-lg"
+                        className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white rounded-xl text-2xl font-medium flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-90 border border-white/5 shadow-lg active:shadow-blue-500/30 active:border-blue-500/20"
                     >
-                        {num}
+                        <span className="transform transition-all active:scale-90">{num}</span>
                     </button>
                 ))}
                 <button
                     onClick={handleBackspace}
-                    className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white rounded-xl flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-95 border border-white/5 shadow-lg"
+                    className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white rounded-xl flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-90 border border-white/5 shadow-lg active:shadow-blue-500/30 active:border-blue-500/20"
                 >
-                    <X size={24} />
+                    <X size={24} className="transform transition-all active:scale-90" />
                 </button>
                 <button
                     onClick={() => handleNumberClick(0)}
-                    className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white rounded-xl text-2xl font-medium flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-95 border border-white/5 shadow-lg"
+                    className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white rounded-xl text-2xl font-medium flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-90 border border-white/5 shadow-lg active:shadow-blue-500/30 active:border-blue-500/20"
                 >
-                    0
+                    <span className="transform transition-all active:scale-90">0</span>
                 </button>
                 <button
                     onClick={handleSubmit}
-                    className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl text-lg font-medium flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-95 shadow-lg shadow-blue-500/20"
+                    className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl text-lg font-medium flex items-center justify-center transform hover:scale-105 transition-all duration-150 active:scale-90 shadow-lg shadow-blue-500/20 active:shadow-blue-500/40"
                 >
-                    OK
+                    <span className="transform transition-all active:scale-90">OK</span>
                 </button>
             </div>
         );
