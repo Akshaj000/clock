@@ -4,5 +4,5 @@ export * from './DurationDisplay';
 export * from './AudioIndicator';
 export * from './VideoCall';
 export * from './CallEndedScreen';
-export * from './VideoCallRecording';
+export * from './WifiPasswordScreen';
 export * from './VideoCallDemo'; 

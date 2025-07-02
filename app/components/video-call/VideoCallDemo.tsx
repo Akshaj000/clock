@@ -50,7 +50,7 @@ export const VideoCallDemo: React.FC = () => {
                 <CallEndedScreen
                     duration={callDuration}
                     participant={participant}
-                    onViewRecording={closeTab}
+                    onCloseTab={closeTab}
                     onStartNewCall={startNewCall}
                 />
             );

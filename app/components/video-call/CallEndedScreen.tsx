@@ -5,21 +5,21 @@ import { Participant } from './types';
 interface CallEndedScreenProps {
     duration: number;
     participant: Participant;
-    onViewRecording: () => void;
+    onCloseTab: () => void;
     onStartNewCall: () => void;
 }
 
 export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
     duration,
     participant,
-    onViewRecording,
+    onCloseTab,
     onStartNewCall
 }) => {    // Prevent browser bounce/scroll effects
     useEffect(() => {
         // Prevent scrolling
         const originalStyle = window.getComputedStyle(document.body).overflow;
         document.body.style.overflow = 'hidden';
-        console.log(duration);  
+        console.log(duration);
 
         // --vh is handled globally to prevent hydration errors
 
@@ -59,7 +59,7 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
 
                 <div className="space-y-3 sm:space-y-4">
                     <button
-                        onClick={onViewRecording}
+                        onClick={onCloseTab}
                         className="w-full bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white px-6 py-3 sm:py-4 rounded-xl transition-all font-medium flex items-center justify-center space-x-3 transform hover:scale-[1.02] border border-white/5 shadow-md"
                         aria-label="Close tab"
                     >
