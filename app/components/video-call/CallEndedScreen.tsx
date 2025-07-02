@@ -106,7 +106,7 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
 
                     {attentionEffect && (
                         <div className="text-green-300 text-sm mt-2 mb-2 animate-pulse font-medium">
-                            Please close the tab to exit
+                            Please close the tab to continue
                         </div>
                     )}
                 </div>
@@ -143,7 +143,7 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
                             </button>
                         </div>
 
-                        <div className="mt-1 text-green-400 text-xs">Tap here to exit</div>
+                        <div className="mt-1 text-green-400 text-xs">Tap here to continue</div>
                     </div>
 
                     <button
