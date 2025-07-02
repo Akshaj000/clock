@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PhoneOff, X } from 'lucide-react';
 import { Participant } from './types';
 
@@ -14,17 +14,65 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
     participant,
     onCloseTab,
     onStartNewCall
-}) => {    // Prevent browser bounce/scroll effects
+}) => {
+    const [attentionEffect, setAttentionEffect] = useState(false);
+    const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+
+    // Handle the close tab button click with sound effect
+    const handleCloseTab = () => {
+        try {
+            const clickSound = new Audio('/sounds/key-press.mp3');
+            clickSound.volume = 0.5;
+            clickSound.play()
+                .then(() => {
+                    // Small delay to let the sound play
+                    setTimeout(() => {
+                        onCloseTab();
+                    }, 150);
+                })
+                .catch(err => {
+                    console.error('Error playing click sound:', err);
+                    onCloseTab();
+                });
+        } catch (err) {
+            console.error('Error with click sound:', err);
+            onCloseTab();
+        }
+        console.log('Close tab button clicked', duration);
+
+        // Add haptic feedback if available
+        if (navigator.vibrate) {
+            navigator.vibrate(20);
+        }
+    };
+
+    // Prevent browser bounce/scroll effects
     useEffect(() => {
         // Prevent scrolling
         const originalStyle = window.getComputedStyle(document.body).overflow;
         document.body.style.overflow = 'hidden';
-        console.log(duration);
 
         // --vh is handled globally to prevent hydration errors
 
+        // Play notification sound after a delay to draw attention to the close button
+        const notificationTimeout = setTimeout(() => {
+            try {
+                notificationAudioRef.current = new Audio('/sounds/success-chime.mp3');
+                notificationAudioRef.current.volume = 0.4;
+                notificationAudioRef.current.play().catch(err => console.error('Error playing sound:', err));
+                setAttentionEffect(true);
+            } catch (err) {
+                console.error('Error with notification sound:', err);
+            }
+        }, 2000);
+
         return () => {
             document.body.style.overflow = originalStyle;
+            clearTimeout(notificationTimeout);
+            if (notificationAudioRef.current) {
+                notificationAudioRef.current.pause();
+                notificationAudioRef.current = null;
+            }
         };
     }, []);
 
@@ -55,21 +103,52 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
                     <p className="text-gray-300 mb-3 text-base sm:text-lg">
                         Your call with <span className="font-semibold">{participant.name}</span> has ended
                     </p>
+
+                    {attentionEffect && (
+                        <div className="text-green-300 text-sm mt-2 mb-2 animate-pulse font-medium">
+                            Please close the tab to exit
+                        </div>
+                    )}
                 </div>
 
-                <div className="space-y-3 sm:space-y-4">
-                    <button
-                        onClick={onCloseTab}
-                        className="w-full bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white px-6 py-3 sm:py-4 rounded-xl transition-all font-medium flex items-center justify-center space-x-3 transform hover:scale-[1.02] border border-white/5 shadow-md"
-                        aria-label="Close tab"
-                    >
-                        <X size={20} />
-                        <span>Close Tab</span>
-                    </button>
+                <div className="space-y-5 sm:space-y-6">
+                    <div className="relative">
+                        {/* Animated arrow pointing to the Close Tab button */}
+                        <div className="absolute -top-4 right-4 animate-bounce">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 4L12 14" stroke="#FFF" strokeWidth="2" strokeLinecap="round" />
+                                <path d="M8 10L12 14L16 10" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </div>
+
+                        <div className="relative">
+                            {/* Spotlight effect */}
+                            {attentionEffect && (
+                                <div
+                                    className="absolute w-full h-full rounded-xl bg-green-400/20 top-1/2 left-1/2 -z-10"
+                                    style={{
+                                        animation: 'spotlight 2s ease-in-out infinite alternate',
+                                        transformOrigin: 'center'
+                                    }}
+                                ></div>
+                            )}
+                            <button
+                                onClick={handleCloseTab}
+                                className={`w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white px-6 py-4 sm:py-5 rounded-xl transition-all font-semibold text-lg flex items-center justify-center space-x-3 transform hover:scale-[1.03] border-2 border-green-500/30 shadow-lg shadow-green-500/30 ${attentionEffect ? 'breathe-animation' : 'animate-pulse'}`}
+                                style={{ animationDuration: '2s' }}
+                                aria-label="Close tab"
+                            >
+                                <X size={22} />
+                                <span>Close Tab</span>
+                            </button>
+                        </div>
+
+                        <div className="mt-1 text-green-400 text-xs">Tap here to exit</div>
+                    </div>
 
                     <button
                         onClick={onStartNewCall}
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 sm:py-4 rounded-xl transition-all font-medium flex items-center justify-center space-x-3 transform hover:scale-[1.02] shadow-lg shadow-blue-500/20"
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 sm:py-4 rounded-xl transition-all font-medium flex items-center justify-center space-x-3 transform hover:scale-[1.02] shadow-md shadow-blue-500/10"
                         aria-label="Start new call"
                     >
                         <PhoneOff size={20} className="rotate-180" />
