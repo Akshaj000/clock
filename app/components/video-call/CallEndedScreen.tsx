@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { PhoneOff, X } from 'lucide-react';
 import { Participant } from './types';
-import { DurationDisplay } from './DurationDisplay';
 
 interface CallEndedScreenProps {
     duration: number;
@@ -20,6 +19,7 @@ export const CallEndedScreen: React.FC<CallEndedScreenProps> = ({
         // Prevent scrolling
         const originalStyle = window.getComputedStyle(document.body).overflow;
         document.body.style.overflow = 'hidden';
+        console.log(duration);  
 
         // --vh is handled globally to prevent hydration errors
 

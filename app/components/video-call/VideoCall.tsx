@@ -49,7 +49,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                 audioRef.current.src = '';
                 audioRef.current.load();
             } catch (e) {
-                // Ignore errors during cleanup
+                console.error("Error stopping audio:", e);
             }
             audioRef.current = null;
         }
