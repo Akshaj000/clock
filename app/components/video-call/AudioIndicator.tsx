@@ -6,25 +6,25 @@ interface AudioIndicatorProps {
 }
 
 export const AudioIndicator: React.FC<AudioIndicatorProps> = ({ isActive }) => (
-    <div className="flex items-center space-x-2 bg-black bg-opacity-60 px-3 py-2 rounded-full">
+    <div className="flex items-center space-x-2 bg-black/40 backdrop-blur-md px-3 py-2 rounded-full shadow-lg border border-white/10">
         {isActive ? (
             <>
-                <Mic size={18} className="text-green-400" />
-                <div className="flex space-x-1">
-                    {[0, 0.1, 0.2].map((delay) => (
+                <Mic size={18} className="text-green-400 filter drop-shadow" />
+                <div className="flex space-x-0.5">
+                    {[...Array(5)].map((_, i) => (
                         <div
-                            key={delay}
-                            className="w-1 h-4 bg-green-400 rounded animate-pulse"
+                            key={i}
+                            className="w-1 bg-gradient-to-t from-green-500 to-green-300 rounded-full animate-pulse"
                             style={{
-                                animationDelay: `${delay}s`,
-                                height: `${Math.random() * 3 + 3}px`
+                                animationDelay: `${i * 0.15}s`,
+                                height: `${Math.max(3, Math.random() * 10 + 5)}px`
                             }}
                         />
                     ))}
                 </div>
             </>
         ) : (
-            <MicOff size={18} className="text-red-400" />
+            <MicOff size={18} className="text-red-400 filter drop-shadow" />
         )}
     </div>
-); 
+);

@@ -23,25 +23,78 @@ export const VideoCall: React.FC<VideoCallProps> = ({
 }) => {
     const [mediaState, setMediaState] = useState<MediaState>({
         stream: null,
-        audioEnabled: false,  // Keep audio disabled as per requirement
-        videoEnabled: true,   // Default video to enabled
+        audioEnabled: false,
+        videoEnabled: true,
         error: null
     });
     const [callDuration, setCallDuration] = useState(initialDuration);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isCallEnding, setIsCallEnding] = useState(false);
 
+    // Refs
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
 
+    // Cleanup function to stop all media and clear resources
+    const cleanupResources = useCallback(() => {
+        // Stop audio with proper cleanup
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current.removeEventListener('ended', handleEndCall);
+            // Ensure audio is fully stopped before nullifying
+            try {
+                audioRef.current.src = '';
+                audioRef.current.load();
+            } catch (e) {
+                // Ignore errors during cleanup
+            }
+            audioRef.current = null;
+        }
+
+        // Stop video stream
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => {
+                track.stop();
+            });
+            localStreamRef.current = null;
+        }
+
+        // Clear timer
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+
+        // Reset video element
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+    }, []);
+
+    // Handle ending the call
+    const handleEndCall = useCallback(() => {
+        if (isCallEnding) return; // Prevent multiple calls
+
+        setIsCallEnding(true);
+        cleanupResources();
+
+        // Call the parent's onEnd callback
+        setTimeout(() => {
+            onEnd();
+        }, 100); // Small delay to ensure cleanup completes
+    }, [onEnd, cleanupResources, isCallEnding]);
+
     // Initialize camera
     const initializeCamera = useCallback(async () => {
+        if (isCallEnding) return;
+
         try {
-            // Request only video, no audio
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    facingMode: 'user', // Use front camera
+                    facingMode: 'user',
                     width: { ideal: 1280 },
                     height: { ideal: 720 }
                 },
@@ -49,7 +102,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({
             });
 
             localStreamRef.current = stream;
-            if (videoRef.current) {
+            if (videoRef.current && !isCallEnding) {
                 videoRef.current.srcObject = stream;
             }
 
@@ -66,66 +119,141 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                 error: "Could not access camera"
             }));
         }
-    }, []);
+    }, [isCallEnding]);
 
-    // Handle camera initialization
+    // Initialize audio playback
+    const initializeAudio = useCallback(async () => {
+        if (isCallEnding || audioRef.current) return; // Prevent multiple audio instances
+
+        try {
+            // Wait 3 seconds before starting audio
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            if (isCallEnding || audioRef.current) return; // Double check after delay
+
+            const audio = new Audio('/sounds/audio.mp3');
+            audio.loop = false;
+            audio.volume = 0.3;
+
+            // Set up event listener before assigning to ref
+            const handleAudioEnd = () => {
+                if (!isCallEnding) {
+                    handleEndCall();
+                }
+            };
+
+            audio.addEventListener('ended', handleAudioEnd);
+
+            // Assign to ref before playing to prevent race conditions
+            audioRef.current = audio;
+
+            await audio.play();
+
+            setMediaState(prev => ({
+                ...prev,
+                error: null
+            }));
+        } catch (err) {
+            console.error("Audio playback error:", err);
+            // Clean up on error
+            if (audioRef.current) {
+                audioRef.current = null;
+            }
+            setMediaState(prev => ({
+                ...prev,
+                error: "Could not play audio"
+            }));
+        }
+    }, [handleEndCall, isCallEnding]);
+
+    // Toggle media (video only, audio is disabled)
+    const toggleMedia = useCallback((type: 'audio' | 'video') => {
+        if (isCallEnding) return;
+
+        if (type === 'video') {
+            setMediaState(prev => {
+                const newVideoEnabled = !prev.videoEnabled;
+
+                if (localStreamRef.current) {
+                    localStreamRef.current.getVideoTracks().forEach(track => {
+                        track.enabled = newVideoEnabled;
+                    });
+                }
+
+                if (!newVideoEnabled && localStreamRef.current) {
+                    localStreamRef.current.getTracks().forEach(track => track.stop());
+                    localStreamRef.current = null;
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = null;
+                    }
+                } else if (newVideoEnabled) {
+                    initializeCamera();
+                }
+
+                return {
+                    ...prev,
+                    videoEnabled: newVideoEnabled
+                };
+            });
+        }
+        // Audio toggle is ignored as per requirement
+    }, [initializeCamera, isCallEnding]);
+
+    // Toggle fullscreen
+    const toggleFullscreen = useCallback(() => {
+        if (isCallEnding) return;
+
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen()
+                .then(() => setIsFullscreen(true))
+                .catch(console.error);
+        } else {
+            document.exitFullscreen()
+                .then(() => setIsFullscreen(false))
+                .catch(console.error);
+        }
+    }, [isCallEnding]);
+
+    // Effect for camera initialization
     useEffect(() => {
-        if (isActive && mediaState.videoEnabled) {
+        if (isActive && mediaState.videoEnabled && !isCallEnding) {
             initializeCamera();
         }
-        
+
         return () => {
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => track.stop());
                 localStreamRef.current = null;
             }
         };
-    }, [isActive, mediaState.videoEnabled, initializeCamera]);
+    }, [isActive, mediaState.videoEnabled, initializeCamera, isCallEnding]);
 
+    // Effect for audio initialization
     useEffect(() => {
-        if (!isActive) return;
+        if (!isActive || isCallEnding || audioRef.current) return; // Prevent multiple audio instances
 
-        const initializeAudio = async () => {
-            try {
-                if (!audioRef.current) {
-                    // Play a short connecting sound only once at the start of the call
-                    const audio = new Audio('/sounds/audio.mp3');
-                    audio.loop = false;
-                    audio.volume = 0.3;
-                    audio.addEventListener('ended', () => {
-                        handleEndCall();
-                    });
-                    await audio.play();
-                    audioRef.current = audio;
-                }
+        let isMounted = true; // Track if component is still mounted
 
-                setMediaState(prev => ({
-                    ...prev,
-                    error: null
-                }));
-
-            } catch (err) {
-                console.error("Audio playback error:", err);
-                setMediaState(prev => ({
-                    ...prev,
-                    error: "Could not play audio"
-                }));
-            }
+        const setupAudio = async () => {
+            if (!isMounted || audioRef.current) return;
+            await initializeAudio();
         };
 
-        initializeAudio();
+        setupAudio();
 
         return () => {
+            isMounted = false;
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.removeEventListener('ended', handleEndCall);
                 audioRef.current = null;
             }
         };
-    }, [isActive, onEnd]);
+    }, [isActive, initializeAudio, handleEndCall, isCallEnding]);
 
+    // Effect for call timer
     useEffect(() => {
-        if (!isActive) {
+        if (!isActive || isCallEnding) {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -140,97 +268,91 @@ export const VideoCall: React.FC<VideoCallProps> = ({
         return () => {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
+                timerRef.current = null;
             }
         };
-    }, [isActive]);
+    }, [isActive, isCallEnding]);
 
-    const toggleMedia = useCallback((type: 'audio' | 'video') => {
-        if (type === 'video') {
-            setMediaState(prev => {
-                const newState = { ...prev };
-                newState.videoEnabled = !prev.videoEnabled;
-                
-                if (localStreamRef.current) {
-                    localStreamRef.current.getVideoTracks().forEach(track => {
-                        track.enabled = newState.videoEnabled;
-                    });
-                }
-                
-                if (!newState.videoEnabled && localStreamRef.current) {
-                    localStreamRef.current.getTracks().forEach(track => track.stop());
-                    localStreamRef.current = null;
-                } else if (newState.videoEnabled) {
-                    initializeCamera();
-                }
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            cleanupResources();
+        };
+    }, [cleanupResources]);    // Handle mobile viewport adjustments
+    useEffect(() => {
+        // Prevent scrolling
+        const originalStyle = window.getComputedStyle(document.body).overflow;
+        document.body.style.overflow = 'hidden';
 
-                return newState;
-            });
-        }
-        // Ignore audio toggle as we don't want to handle microphone
-    }, [initializeCamera]);
+        // Only handle overflow, don't modify --vh as it's handled globally
+        // to prevent hydration errors
 
-    const toggleFullscreen = useCallback(() => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen()
-                .then(() => setIsFullscreen(true))
-                .catch(console.error);
-        } else {
-            document.exitFullscreen()
-                .then(() => setIsFullscreen(false))
-                .catch(console.error);
-        }
+        return () => {
+            document.body.style.overflow = originalStyle;
+        };
     }, []);
 
-    const handleEndCall = useCallback(() => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.removeEventListener('ended', onEnd);
-            audioRef.current = null;
-        }
-
-        onEnd();
-    }, [onEnd]);
-
-    if (!isActive) return null;
+    // Don't render if call is not active or is ending
+    if (!isActive || isCallEnding) return null;
 
     return (
-        <div className="fixed inset-0 bg-gray-900 flex flex-col z-50 min-h-screen w-full max-w-full overflow-x-hidden">
+        <div
+            className="fixed left-0 top-0 w-full bg-gradient-to-br from-gray-900 via-gray-950 to-black flex flex-col z-50 overflow-hidden"
+            style={{
+                height: 'calc(var(--vh, 1vh) * 100)',
+                paddingTop: 'env(safe-area-inset-top)',
+                paddingBottom: 'env(safe-area-inset-bottom)',
+                paddingLeft: 'env(safe-area-inset-left)',
+                paddingRight: 'env(safe-area-inset-right)'
+            }}
+        >
             {/* Main Video Area */}
-            <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center w-full max-w-full">
+            <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center w-full min-h-0 min-w-0">
                 {mediaState.error ? (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-800">
-                        <div className="text-center text-white">
-                            <VideoOff size={48} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-lg mb-2">Media Unavailable</p>
-                            <p className="text-sm opacity-75">{mediaState.error}</p>
+                    <div className="w-full h-full flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                        <div className="text-center text-white p-6 sm:p-8 rounded-2xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl max-w-md">
+                            <VideoOff size={52} className="mx-auto mb-5 opacity-70 text-red-300" />
+                            <p className="text-xl mb-3 font-medium">Media Unavailable</p>
+                            <p className="text-sm text-gray-300">{mediaState.error}</p>
                         </div>
                     </div>
                 ) : (
-                    <div className="w-full h-full relative flex flex-col items-center justify-center">
+                    <div className="w-full h-full relative flex flex-col items-center justify-center min-h-0 min-w-0">
                         {/* Remote Participant Video */}
                         <div className="w-full flex items-center justify-center">
                             {participant.isVideoOn ? (
-                                <img
-                                    src={participant.image}
-                                    alt={`Video feed from ${participant.name}`}
-                                    className="object-cover rounded-full max-w-[180px] max-h-[180px] sm:max-w-[300px] sm:max-h-[300px] w-40 h-40 sm:w-72 sm:h-72"
-                                />
+                                <div className="relative">
+                                    <img
+                                        src={participant.image}
+                                        alt={`Video feed from ${participant.name}`}
+                                        className="object-cover rounded-3xl shadow-2xl border-2 border-blue-900/50 max-w-[240px] max-h-[240px] sm:max-w-[360px] sm:max-h-[360px] w-60 h-60 sm:w-[360px] sm:h-[360px] transition-all duration-300"
+                                    />
+                                    {/* Subtle overlay gradient for better text contrast */}
+                                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+                                </div>
                             ) : (
-                                <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center bg-gray-700 rounded-full">
-                                    <span className="text-white text-3xl sm:text-4xl font-semibold">{participant.avatar}</span>
+                                <div className="w-48 h-48 sm:w-60 sm:h-60 flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl shadow-xl border border-gray-700/50 overflow-hidden">
+                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-t from-black/40 to-transparent">
+                                        <span className="text-white text-5xl sm:text-6xl font-semibold drop-shadow-xl">
+                                            {participant.avatar}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
                             {/* Participant info overlay */}
-                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white text-base sm:text-lg bg-black bg-opacity-60 px-4 py-2 rounded-full">
-                                {participant.name}
+                            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white text-lg sm:text-xl backdrop-blur-lg bg-black/50 px-7 py-3 rounded-full shadow-xl border border-white/10 flex items-center gap-3">
+                                <span className="font-semibold tracking-wide">{participant.name}</span>
                                 {participant.isMicOn && (
-                                    <span className="ml-2 text-green-400">●</span>
+                                    <span className="flex h-3 w-3 relative">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                    </span>
                                 )}
                             </div>
                         </div>
 
                         {/* Local Video Preview */}
-                        <div className="absolute top-4 left-4 w-24 h-16 sm:w-60 sm:h-40 bg-gray-800 rounded-lg overflow-hidden shadow-xl border-2 border-gray-600">
+                        <div className="absolute top-7 left-7 w-32 h-24 sm:w-64 sm:h-44 bg-gray-900/80 backdrop-blur-sm rounded-xl overflow-hidden shadow-2xl border border-blue-900/30 hover:border-blue-800/50 transition-all duration-300 hover:scale-105 hover:shadow-blue-900/20">
                             {mediaState.videoEnabled ? (
                                 <video
                                     ref={videoRef}
@@ -238,12 +360,12 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                                     playsInline
                                     muted
                                     className="w-full h-full object-cover"
-                                    style={{ transform: 'scaleX(-1)' }} // Mirror the video
+                                    style={{ transform: 'scaleX(-1)' }}
                                 />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gray-700">
-                                    <div className="w-10 h-10 sm:w-16 sm:h-16 bg-gray-600 rounded-full flex items-center justify-center">
-                                        <span className="text-white text-base sm:text-xl font-semibold">You</span>
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                                    <div className="w-14 h-14 sm:w-20 sm:h-20 bg-gray-700/80 rounded-full flex items-center justify-center border border-gray-600/50">
+                                        <span className="text-white text-lg sm:text-2xl font-medium">You</span>
                                     </div>
                                 </div>
                             )}
@@ -251,55 +373,51 @@ export const VideoCall: React.FC<VideoCallProps> = ({
                     </div>
                 )}
 
-                {/* Call info overlay */}
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm">
-                    <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span>Live • <DurationDisplay seconds={callDuration} /></span>
-                    </div>
-                </div>
                 {/* Fullscreen toggle */}
                 <ControlButton
                     icon={isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                     onClick={toggleFullscreen}
                     active={isFullscreen}
                     title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                    className="absolute top-4 right-4"
+                    className="absolute top-7 right-7 shadow-lg"
                 />
             </div>
+
             {/* Control Bar */}
-            <div className="bg-gray-800 p-2 sm:p-4 flex flex-col sm:flex-row items-center justify-between shadow-lg w-full max-w-full gap-2 sm:gap-0">
-                <div className="flex items-center space-x-2 sm:space-x-4 mb-2 sm:mb-0">
+            <div className="bg-black/60 backdrop-blur-lg p-5 flex flex-col sm:flex-row items-center justify-between shadow-2xl w-full max-w-full gap-3 sm:gap-0 border-t border-white/5">
+                <div className="flex items-center space-x-4 sm:space-x-6 mb-3 sm:mb-0">
                     <DurationDisplay seconds={callDuration} />
-                    <div className="text-gray-400 text-xs sm:text-sm">
-                        1-on-1 call with {participant.name}
+                    <div className="text-gray-300 text-xs sm:text-sm">
+                        1-on-1 call with <span className="font-medium text-white">{participant.name}</span>
                     </div>
                 </div>
+
                 {/* Main Controls */}
-                <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="flex items-center space-x-3 sm:space-x-5">
                     <ControlButton
-                        icon={mediaState.audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+                        icon={mediaState.audioEnabled ? <Mic size={22} /> : <MicOff size={22} />}
                         onClick={() => toggleMedia('audio')}
                         active={mediaState.audioEnabled}
                         title={mediaState.audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
                     />
                     <ControlButton
-                        icon={mediaState.videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
+                        icon={mediaState.videoEnabled ? <Video size={22} /> : <VideoOff size={22} />}
                         onClick={() => toggleMedia('video')}
                         active={mediaState.videoEnabled}
                         title={mediaState.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
                     />
                     <ControlButton
-                        icon={<PhoneOff size={20} />}
+                        icon={<PhoneOff size={22} />}
                         onClick={handleEndCall}
                         active={false}
                         danger={true}
                         title="End call"
-                        className="hover:scale-105 transform transition-transform"
+                        className="hover:scale-110 transform transition-transform shadow-xl"
                     />
                 </div>
+
                 {/* Secondary Controls */}
-                <div className="flex items-center space-x-1 sm:space-x-2 mt-2 sm:mt-0">
+                <div className="flex items-center space-x-2 sm:space-x-3 mt-3 sm:mt-0">
                     <ControlButton
                         icon={<Users size={18} />}
                         onClick={() => { }}

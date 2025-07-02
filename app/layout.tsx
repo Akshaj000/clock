@@ -24,6 +24,38 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
+        {/* Script to handle mobile browser viewport issues - fixed for hydration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+            if (typeof window !== 'undefined') {
+              window.addEventListener('load', function() {
+                // Set the --vh CSS variable to the actual viewport height
+                function setVH() {
+                  let vh = window.innerHeight * 0.01;
+                  document.documentElement.style.setProperty('--vh', \`\${vh}px\`);
+                }
+                
+                // Call after page is fully loaded to avoid hydration mismatch
+                setTimeout(setVH, 0);
+                
+                // Update on resize and orientation change
+                window.addEventListener('resize', setVH);
+                window.addEventListener('orientationchange', function() {
+                  setTimeout(setVH, 100);
+                });
+              });
+            }
+          `,
+          }}
+          defer
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -12,8 +12,12 @@ export const DurationDisplay: React.FC<DurationDisplayProps> = ({ seconds }) => 
     };
 
     return (
-        <span className="font-mono text-lg text-white">
-            {formatDuration(seconds)}
-        </span>
+        <div className="flex items-center space-x-1">
+            <div className="px-2.5 py-1 bg-black/30 backdrop-blur-md rounded-md border border-white/10 shadow-inner">
+                <span className="font-mono text-lg font-bold tracking-wider text-white">
+                    {formatDuration(seconds)}
+                </span>
+            </div>
+        </div>
     );
-}; 
+};
