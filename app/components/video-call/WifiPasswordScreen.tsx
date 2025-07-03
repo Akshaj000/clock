@@ -11,7 +11,7 @@ interface WifiPasswordScreenProps {
 export const WifiPasswordScreen: React.FC<WifiPasswordScreenProps> = ({
     participant,
     onRetry,
-    correctPassword = '123456'
+    correctPassword = '421245'
 }) => {
     const [password, setPassword] = useState<string>('');
     const [error, setError] = useState<boolean>(false);

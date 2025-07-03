@@ -69,7 +69,7 @@ export default function Home() {
           <WifiPasswordScreen
             participant={participant}
             onRetry={handleWifiPasswordSuccess}
-            correctPassword="123456"
+            correctPassword="421245"
           />
         ) : !callStarted ? (
           <div className="flex flex-col items-center justify-center gap-6">
